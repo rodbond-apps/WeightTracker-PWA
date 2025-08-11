@@ -31,6 +31,10 @@
     border: none;
     color: white;
     border-radius: 6px;
+    transition: background-color 0.3s ease;
+  }
+  button:hover:not(:disabled) {
+    background-color: #45a049;
   }
   button:disabled {
     background-color: #ccc;
@@ -40,6 +44,8 @@
     font-size: 1rem;
     padding: 0.3rem 0.5rem;
     width: 100px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
   }
   label {
     font-weight: 600;
@@ -50,6 +56,7 @@
     justify-content: center;
     gap: 1rem;
     align-items: center;
+    flex-wrap: wrap;
   }
   .result {
     text-align: center;
@@ -65,6 +72,10 @@
     margin-top: 3rem;
     font-size: 0.8rem;
     color: #666;
+  }
+  #chart-container {
+    margin: 2rem auto;
+    max-width: 500px;
   }
 </style>
 </head>
@@ -90,12 +101,24 @@
   <button id="save-target">Save</button>
 </div>
 
+<div class="field-group">
+  <label for="base-calories">Base daily calories:</label>
+  <input type="number" id="base-calories" min="1200" max="6000" step="50" />
+  <button id="save-base-cals">Save</button>
+</div>
+
 <div class="result" id="calorie-result">
   Set your weight and target to see your calorie recommendation.
 </div>
 
+<div id="chart-container">
+  <h2>Weight History (Last 30 days)</h2>
+  <canvas id="weight-chart" width="500" height="250"></canvas>
+</div>
+
 <footer>Data is saved locally on your device.</footer>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   // --- Utility functions ---
   function formatDate(date) {
@@ -110,7 +133,7 @@
   const STORAGE_KEYS = {
     weights: 'weightData',
     weeklyTarget: 'weeklyWeightLossTarget',
-    baseCalories: 'baseCalories', // default base calories (e.g. 3200)
+    baseCalories: 'baseCalories',
   };
 
   // Default base calories (you can let user change this later)
@@ -133,7 +156,10 @@
   const saveWeightBtn = document.getElementById('save-weight');
   const weeklyTargetInput = document.getElementById('weekly-target');
   const saveTargetBtn = document.getElementById('save-target');
+  const baseCaloriesInput = document.getElementById('base-calories');
+  const saveBaseCalsBtn = document.getElementById('save-base-cals');
   const calorieResult = document.getElementById('calorie-result');
+  const chartCtx = document.getElementById('weight-chart').getContext('2d');
 
   // --- Functions ---
   function saveAll() {
@@ -161,7 +187,6 @@
     saveAll();
   }
 
-  // Get date n days before
   function getDateNDaysBefore(date, n) {
     const d = new Date(date);
     d.setDate(d.getDate() - n);
@@ -169,12 +194,6 @@
   }
 
   // Calculate calorie recommendation for selectedDate
-  // Rule:
-  // If weight 7 days ago = W_old, current weight = W_new,
-  // If W_new >= W_old (no loss or gain), reduce calories by 500,
-  // If W_new < W_old (weight loss), keep calories same.
-  // Calories base is baseCalories.
-  // Calories valid for next 7 days after selectedDate.
   function calculateCalories(date) {
     const todayKey = formatDate(date);
     const oldDate = getDateNDaysBefore(date, 7);
@@ -188,19 +207,71 @@
       return "Enter weight for today and 7 days ago to calculate calories.";
     }
 
-    // Check if actual loss meets target loss
     const actualLoss = W_old - W_new;
 
-    // Calories start at baseCalories
     let calories = baseCalories;
 
-    // Adjust calories depending on loss
     if (actualLoss < targetLoss) {
-      calories -= 500; // reduce by 500 if no sufficient loss
-      if (calories < 1200) calories = 1200; // don't go below 1200 cal
+      calories -= 500;
+      if (calories < 1200) calories = 1200;
       return `Weight loss target not met. Calories reduced by 500 to ${calories} kcal/day for next 7 days.`;
     } else {
       return `Weight loss target met! Maintain ${calories} kcal/day for next 7 days.`;
+    }
+  }
+
+  // Update the chart data and redraw
+  let weightChart;
+
+  function updateChart() {
+    // Collect last 30 days
+    const dates = [];
+    const weights = [];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    for(let i = 29; i >= 0; i--) {
+      let d = new Date(today);
+      d.setDate(d.getDate() - i);
+      let key = formatDate(d);
+      dates.push(key);
+      weights.push(weightData[key] || null);
+    }
+
+    if(weightChart) {
+      weightChart.data.labels = dates;
+      weightChart.data.datasets[0].data = weights;
+      weightChart.update();
+    } else {
+      weightChart = new Chart(chartCtx, {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [{
+            label: 'Weight (kg)',
+            data: weights,
+            borderColor: '#4caf50',
+            backgroundColor: 'rgba(76,175,80,0.2)',
+            spanGaps: true,
+            tension: 0.25,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: false,
+              min: Math.min(...weights.filter(w => w !== null)) - 2 || 30,
+              max: Math.max(...weights.filter(w => w !== null)) + 2 || 120
+            }
+          },
+          plugins: {
+            legend: { display: true }
+          }
+        }
+      });
     }
   }
 
@@ -211,8 +282,10 @@
     weightInput.value = weightToday !== null ? weightToday : '';
 
     weeklyTargetInput.value = weeklyTarget !== null ? weeklyTarget : '';
+    baseCaloriesInput.value = baseCalories !== null ? baseCalories : DEFAULT_BASE_CALORIES;
 
     calorieResult.textContent = calculateCalories(selectedDate);
+    updateChart();
   }
 
   // --- Event Listeners ---
@@ -242,6 +315,17 @@
       return;
     }
     weeklyTarget = val;
+    saveAll();
+    updateUI();
+  };
+
+  saveBaseCalsBtn.onclick = () => {
+    let val = parseInt(baseCaloriesInput.value);
+    if (isNaN(val) || val < 1200) {
+      alert('Please enter a valid base calorie number (>=1200).');
+      return;
+    }
+    baseCalories = val;
     saveAll();
     updateUI();
   };

@@ -102,9 +102,9 @@
 </div>
 
 <div class="field-group">
-  <label for="base-calories">Base daily calories:</label>
-  <input type="number" id="base-calories" min="1200" max="6000" step="50" />
-  <button id="save-base-cals">Save</button>
+  <label for="calories-input">Calories:</label>
+  <input type="number" id="calories-input" min="1200" max="6000" step="50" />
+  <button id="save-calories">Save</button>
 </div>
 
 <div class="result" id="calorie-result">
@@ -133,11 +133,11 @@
   const STORAGE_KEYS = {
     weights: 'weightData',
     weeklyTarget: 'weeklyWeightLossTarget',
-    baseCalories: 'baseCalories',
+    caloriesData: 'caloriesData', // calories per day storage
   };
 
-  // Default base calories (you can let user change this later)
-  const DEFAULT_BASE_CALORIES = 3200;
+  // Default starting calories if none set
+  const DEFAULT_CALORIES = 3200;
 
   // --- State ---
   let selectedDate = new Date();
@@ -146,7 +146,7 @@
   // Load data from localStorage or init
   let weightData = JSON.parse(localStorage.getItem(STORAGE_KEYS.weights)) || {};
   let weeklyTarget = parseFloat(localStorage.getItem(STORAGE_KEYS.weeklyTarget)) || 0;
-  let baseCalories = parseInt(localStorage.getItem(STORAGE_KEYS.baseCalories)) || DEFAULT_BASE_CALORIES;
+  let caloriesData = JSON.parse(localStorage.getItem(STORAGE_KEYS.caloriesData)) || {};
 
   // --- Elements ---
   const dateDisplay = document.getElementById('date-display');
@@ -156,8 +156,8 @@
   const saveWeightBtn = document.getElementById('save-weight');
   const weeklyTargetInput = document.getElementById('weekly-target');
   const saveTargetBtn = document.getElementById('save-target');
-  const baseCaloriesInput = document.getElementById('base-calories');
-  const saveBaseCalsBtn = document.getElementById('save-base-cals');
+  const caloriesInput = document.getElementById('calories-input');
+  const saveCaloriesBtn = document.getElementById('save-calories');
   const calorieResult = document.getElementById('calorie-result');
   const chartCtx = document.getElementById('weight-chart').getContext('2d');
 
@@ -165,7 +165,7 @@
   function saveAll() {
     localStorage.setItem(STORAGE_KEYS.weights, JSON.stringify(weightData));
     localStorage.setItem(STORAGE_KEYS.weeklyTarget, weeklyTarget.toString());
-    localStorage.setItem(STORAGE_KEYS.baseCalories, baseCalories.toString());
+    localStorage.setItem(STORAGE_KEYS.caloriesData, JSON.stringify(caloriesData));
   }
 
   function updateDateDisplay() {
@@ -187,13 +187,28 @@
     saveAll();
   }
 
+  function loadCaloriesForDate(date) {
+    const key = formatDate(date);
+    return caloriesData[key] || null;
+  }
+
+  function saveCaloriesForDate(date, calories) {
+    const key = formatDate(date);
+    if (calories === null || calories === '') {
+      delete caloriesData[key];
+    } else {
+      caloriesData[key] = calories;
+    }
+    saveAll();
+  }
+
   function getDateNDaysBefore(date, n) {
     const d = new Date(date);
     d.setDate(d.getDate() - n);
     return d;
   }
 
-  // Calculate calorie recommendation for selectedDate
+  // Calculate calories for a date by checking 7 days ago weight change and previous calories
   function calculateCalories(date) {
     const todayKey = formatDate(date);
     const oldDate = getDateNDaysBefore(date, 7);
@@ -207,24 +222,34 @@
       return "Enter weight for today and 7 days ago to calculate calories.";
     }
 
+    // Get previous day calories to base adjustment on (or default)
+    const prevDate = getDateNDaysBefore(date, 1);
+    const prevKey = formatDate(prevDate);
+    let prevCalories = caloriesData[prevKey] || DEFAULT_CALORIES;
+
     const actualLoss = W_old - W_new;
 
-    let calories = baseCalories;
+    let newCalories = prevCalories;
 
     if (actualLoss < targetLoss) {
-      calories -= 500;
-      if (calories < 1200) calories = 1200;
-      return `Weight loss target not met. Calories reduced by 500 to ${calories} kcal/day for next 7 days.`;
+      // Reduce calories by 500 but no lower than 1200
+      newCalories = Math.max(1200, prevCalories - 500);
+      saveCaloriesForDate(date, newCalories);
+      return `Weight loss target not met. Calories reduced by 500 to ${newCalories} kcal/day for today.`;
     } else {
-      return `Weight loss target met! Maintain ${calories} kcal/day for next 7 days.`;
+      // Target met, keep previous or default calories
+      if (caloriesData[todayKey] !== prevCalories) {
+        // Reset calories to prevCalories (or default)
+        saveCaloriesForDate(date, prevCalories);
+      }
+      return `Weight loss target met! Maintain ${newCalories} kcal/day for today.`;
     }
   }
 
-  // Update the chart data and redraw
+  // Update chart data and redraw
   let weightChart;
 
   function updateChart() {
-    // Collect last 30 days
     const dates = [];
     const weights = [];
     const today = new Date();
@@ -275,14 +300,15 @@
     }
   }
 
-  // Update UI weight input & calorie text for selectedDate
+  // Update UI weight input, calories input & calorie text for selectedDate
   function updateUI() {
     updateDateDisplay();
     const weightToday = loadWeightForDate(selectedDate);
     weightInput.value = weightToday !== null ? weightToday : '';
 
     weeklyTargetInput.value = weeklyTarget !== null ? weeklyTarget : '';
-    baseCaloriesInput.value = baseCalories !== null ? baseCalories : DEFAULT_BASE_CALORIES;
+    const calToday = loadCaloriesForDate(selectedDate);
+    caloriesInput.value = calToday !== null ? calToday : DEFAULT_CALORIES;
 
     calorieResult.textContent = calculateCalories(selectedDate);
     updateChart();
@@ -315,18 +341,17 @@
       return;
     }
     weeklyTarget = val;
-    saveAll();
+    localStorage.setItem(STORAGE_KEYS.weeklyTarget, weeklyTarget.toString());
     updateUI();
   };
 
-  saveBaseCalsBtn.onclick = () => {
-    let val = parseInt(baseCaloriesInput.value);
+  saveCaloriesBtn.onclick = () => {
+    let val = parseInt(caloriesInput.value);
     if (isNaN(val) || val < 1200) {
-      alert('Please enter a valid base calorie number (>=1200).');
+      alert('Please enter a valid calorie number (>=1200).');
       return;
     }
-    baseCalories = val;
-    saveAll();
+    saveCaloriesForDate(selectedDate, val);
     updateUI();
   };
 

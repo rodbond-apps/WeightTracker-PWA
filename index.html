@@ -3,195 +3,251 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>My Offline Tracker</title>
-
-<!-- PWA manifest -->
-<link rel="manifest" href="manifest.json" />
-
+<title>Weight & Calorie Tracker</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-         Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-         max-width: 600px; margin: auto; padding: 1rem; background: #fafafa; }
-  h1 { text-align: center; }
-  section { margin-bottom: 2rem; }
-  input, button { padding: 0.5rem; font-size: 1rem; }
-  ul { list-style: none; padding-left: 0; }
-  li { background: white; margin: 0.25rem 0; padding: 0.5rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
-  button.done { background-color: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; }
-  button.delete { background-color: #e53935; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 0.5rem; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    max-width: 600px;
+    margin: auto;
+    padding: 1rem;
+    background: #f5f7fa;
+    color: #222;
+  }
+  h1, h2 {
+    text-align: center;
+  }
+  .date-nav {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  button {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    background-color: #4caf50;
+    border: none;
+    color: white;
+    border-radius: 6px;
+  }
+  button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  input[type=number] {
+    font-size: 1rem;
+    padding: 0.3rem 0.5rem;
+    width: 100px;
+  }
+  label {
+    font-weight: 600;
+  }
+  .field-group {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    align-items: center;
+  }
+  .result {
+    text-align: center;
+    margin-top: 2rem;
+    font-size: 1.2rem;
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 0 5px #ccc;
+  }
+  footer {
+    text-align: center;
+    margin-top: 3rem;
+    font-size: 0.8rem;
+    color: #666;
+  }
 </style>
 </head>
 <body>
 
-<h1>My Offline Tracker</h1>
+<h1>Weight & Calorie Tracker</h1>
 
-<section id="calories-section">
-  <h2>Calories</h2>
-  <form id="calorie-form">
-    <input type="text" id="calorie-item" placeholder="Food item" required />
-    <input type="number" id="calorie-value" placeholder="Calories" required min="0" />
-    <button type="submit">Add</button>
-  </form>
-  <ul id="calorie-list"></ul>
-</section>
+<div class="date-nav">
+  <button id="prev-day">&lt; Prev</button>
+  <div id="date-display" aria-live="polite" style="min-width: 140px; text-align:center;"></div>
+  <button id="next-day">Next &gt;</button>
+</div>
 
-<section id="habits-section">
-  <h2>Habits</h2>
-  <form id="habit-form">
-    <input type="text" id="habit-name" placeholder="Habit name" required />
-    <button type="submit">Add</button>
-  </form>
-  <ul id="habit-list"></ul>
-</section>
+<div class="field-group">
+  <label for="weight-input">Weight (kg):</label>
+  <input type="number" id="weight-input" min="30" max="300" step="0.1" />
+  <button id="save-weight">Save</button>
+</div>
 
-<section id="todo-section">
-  <h2>To-Do</h2>
-  <form id="todo-form">
-    <input type="text" id="todo-task" placeholder="Task" required />
-    <button type="submit">Add</button>
-  </form>
-  <ul id="todo-list"></ul>
-</section>
+<div class="field-group">
+  <label for="weekly-target">Target weight loss per week (kg):</label>
+  <input type="number" id="weekly-target" min="0" max="5" step="0.1" />
+  <button id="save-target">Save</button>
+</div>
+
+<div class="result" id="calorie-result">
+  Set your weight and target to see your calorie recommendation.
+</div>
+
+<footer>Data is saved locally on your device.</footer>
 
 <script>
-  // Storage keys
+  // --- Utility functions ---
+  function formatDate(date) {
+    return date.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  }
+
+  function parseDate(str) {
+    return new Date(str + 'T00:00:00');
+  }
+
+  // --- Constants and Storage Keys ---
   const STORAGE_KEYS = {
-    calories: 'offlineTrackerCalories',
-    habits: 'offlineTrackerHabits',
-    todos: 'offlineTrackerTodos',
+    weights: 'weightData',
+    weeklyTarget: 'weeklyWeightLossTarget',
+    baseCalories: 'baseCalories', // default base calories (e.g. 3200)
   };
 
-  // Load saved data or empty array
-  let calories = JSON.parse(localStorage.getItem(STORAGE_KEYS.calories)) || [];
-  let habits = JSON.parse(localStorage.getItem(STORAGE_KEYS.habits)) || [];
-  let todos = JSON.parse(localStorage.getItem(STORAGE_KEYS.todos)) || [];
+  // Default base calories (you can let user change this later)
+  const DEFAULT_BASE_CALORIES = 3200;
 
-  // Save to localStorage helper
-  function saveData() {
-    localStorage.setItem(STORAGE_KEYS.calories, JSON.stringify(calories));
-    localStorage.setItem(STORAGE_KEYS.habits, JSON.stringify(habits));
-    localStorage.setItem(STORAGE_KEYS.todos, JSON.stringify(todos));
+  // --- State ---
+  let selectedDate = new Date();
+  selectedDate.setHours(0,0,0,0);
+
+  // Load data from localStorage or init
+  let weightData = JSON.parse(localStorage.getItem(STORAGE_KEYS.weights)) || {};
+  let weeklyTarget = parseFloat(localStorage.getItem(STORAGE_KEYS.weeklyTarget)) || 0;
+  let baseCalories = parseInt(localStorage.getItem(STORAGE_KEYS.baseCalories)) || DEFAULT_BASE_CALORIES;
+
+  // --- Elements ---
+  const dateDisplay = document.getElementById('date-display');
+  const prevBtn = document.getElementById('prev-day');
+  const nextBtn = document.getElementById('next-day');
+  const weightInput = document.getElementById('weight-input');
+  const saveWeightBtn = document.getElementById('save-weight');
+  const weeklyTargetInput = document.getElementById('weekly-target');
+  const saveTargetBtn = document.getElementById('save-target');
+  const calorieResult = document.getElementById('calorie-result');
+
+  // --- Functions ---
+  function saveAll() {
+    localStorage.setItem(STORAGE_KEYS.weights, JSON.stringify(weightData));
+    localStorage.setItem(STORAGE_KEYS.weeklyTarget, weeklyTarget.toString());
+    localStorage.setItem(STORAGE_KEYS.baseCalories, baseCalories.toString());
   }
 
-  // Render lists
-  function renderCalories() {
-    const list = document.getElementById('calorie-list');
-    list.innerHTML = '';
-    calories.forEach((c, i) => {
-      const li = document.createElement('li');
-      li.textContent = `${c.item} - ${c.calories} cal`;
-      const btn = document.createElement('button');
-      btn.textContent = 'Delete';
-      btn.className = 'delete';
-      btn.onclick = () => {
-        calories.splice(i, 1);
-        saveData();
-        renderCalories();
-      };
-      li.appendChild(btn);
-      list.appendChild(li);
-    });
+  function updateDateDisplay() {
+    dateDisplay.textContent = selectedDate.toDateString();
   }
 
-  function renderHabits() {
-    const list = document.getElementById('habit-list');
-    list.innerHTML = '';
-    habits.forEach((h, i) => {
-      const li = document.createElement('li');
-      li.textContent = h.name + (h.done ? ' ✅' : '');
-      const doneBtn = document.createElement('button');
-      doneBtn.textContent = h.done ? 'Undo' : 'Done';
-      doneBtn.className = 'done';
-      doneBtn.onclick = () => {
-        habits[i].done = !habits[i].done;
-        saveData();
-        renderHabits();
-      };
-      const delBtn = document.createElement('button');
-      delBtn.textContent = 'Delete';
-      delBtn.className = 'delete';
-      delBtn.onclick = () => {
-        habits.splice(i, 1);
-        saveData();
-        renderHabits();
-      };
-      li.appendChild(doneBtn);
-      li.appendChild(delBtn);
-      list.appendChild(li);
-    });
+  function loadWeightForDate(date) {
+    const key = formatDate(date);
+    return weightData[key] || null;
   }
 
-  function renderTodos() {
-    const list = document.getElementById('todo-list');
-    list.innerHTML = '';
-    todos.forEach((t, i) => {
-      const li = document.createElement('li');
-      li.textContent = t.task + (t.done ? ' ✅' : '');
-      const doneBtn = document.createElement('button');
-      doneBtn.textContent = t.done ? 'Undo' : 'Done';
-      doneBtn.className = 'done';
-      doneBtn.onclick = () => {
-        todos[i].done = !todos[i].done;
-        saveData();
-        renderTodos();
-      };
-      const delBtn = document.createElement('button');
-      delBtn.textContent = 'Delete';
-      delBtn.className = 'delete';
-      delBtn.onclick = () => {
-        todos.splice(i, 1);
-        saveData();
-        renderTodos();
-      };
-      li.appendChild(doneBtn);
-      li.appendChild(delBtn);
-      list.appendChild(li);
-    });
+  function saveWeightForDate(date, weight) {
+    const key = formatDate(date);
+    if (weight === null || weight === '') {
+      delete weightData[key];
+    } else {
+      weightData[key] = weight;
+    }
+    saveAll();
   }
 
-  // Handle form submissions
-  document.getElementById('calorie-form').onsubmit = e => {
-    e.preventDefault();
-    const item = document.getElementById('calorie-item').value.trim();
-    const caloriesVal = Number(document.getElementById('calorie-value').value);
-    if (!item || caloriesVal < 0) return;
-    calories.push({item, calories: caloriesVal});
-    saveData();
-    renderCalories();
-    e.target.reset();
+  // Get date n days before
+  function getDateNDaysBefore(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - n);
+    return d;
+  }
+
+  // Calculate calorie recommendation for selectedDate
+  // Rule:
+  // If weight 7 days ago = W_old, current weight = W_new,
+  // If W_new >= W_old (no loss or gain), reduce calories by 500,
+  // If W_new < W_old (weight loss), keep calories same.
+  // Calories base is baseCalories.
+  // Calories valid for next 7 days after selectedDate.
+  function calculateCalories(date) {
+    const todayKey = formatDate(date);
+    const oldDate = getDateNDaysBefore(date, 7);
+    const oldKey = formatDate(oldDate);
+
+    const W_old = weightData[oldKey];
+    const W_new = weightData[todayKey];
+    const targetLoss = weeklyTarget || 0;
+
+    if (W_old == null || W_new == null) {
+      return "Enter weight for today and 7 days ago to calculate calories.";
+    }
+
+    // Check if actual loss meets target loss
+    const actualLoss = W_old - W_new;
+
+    // Calories start at baseCalories
+    let calories = baseCalories;
+
+    // Adjust calories depending on loss
+    if (actualLoss < targetLoss) {
+      calories -= 500; // reduce by 500 if no sufficient loss
+      if (calories < 1200) calories = 1200; // don't go below 1200 cal
+      return `Weight loss target not met. Calories reduced by 500 to ${calories} kcal/day for next 7 days.`;
+    } else {
+      return `Weight loss target met! Maintain ${calories} kcal/day for next 7 days.`;
+    }
+  }
+
+  // Update UI weight input & calorie text for selectedDate
+  function updateUI() {
+    updateDateDisplay();
+    const weightToday = loadWeightForDate(selectedDate);
+    weightInput.value = weightToday !== null ? weightToday : '';
+
+    weeklyTargetInput.value = weeklyTarget !== null ? weeklyTarget : '';
+
+    calorieResult.textContent = calculateCalories(selectedDate);
+  }
+
+  // --- Event Listeners ---
+  prevBtn.onclick = () => {
+    selectedDate.setDate(selectedDate.getDate() - 1);
+    updateUI();
+  };
+  nextBtn.onclick = () => {
+    selectedDate.setDate(selectedDate.getDate() + 1);
+    updateUI();
   };
 
-  document.getElementById('habit-form').onsubmit = e => {
-    e.preventDefault();
-    const name = document.getElementById('habit-name').value.trim();
-    if (!name) return;
-    habits.push({name, done: false});
-    saveData();
-    renderHabits();
-    e.target.reset();
+  saveWeightBtn.onclick = () => {
+    let val = parseFloat(weightInput.value);
+    if (isNaN(val) || val <= 0) {
+      alert('Please enter a valid weight.');
+      return;
+    }
+    saveWeightForDate(selectedDate, val);
+    updateUI();
   };
 
-  document.getElementById('todo-form').onsubmit = e => {
-    e.preventDefault();
-    const task = document.getElementById('todo-task').value.trim();
-    if (!task) return;
-    todos.push({task, done: false});
-    saveData();
-    renderTodos();
-    e.target.reset();
+  saveTargetBtn.onclick = () => {
+    let val = parseFloat(weeklyTargetInput.value);
+    if (isNaN(val) || val < 0) {
+      alert('Please enter a valid target weight loss (>=0).');
+      return;
+    }
+    weeklyTarget = val;
+    saveAll();
+    updateUI();
   };
 
-  // Initial render
-  renderCalories();
-  renderHabits();
-  renderTodos();
-
-  // Register service worker for offline
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js')
-      .then(() => console.log('Service Worker Registered'))
-      .catch(err => console.log('Service Worker registration failed:', err));
-  }
+  // Init UI on load
+  updateUI();
 </script>
 </body>
 </html>

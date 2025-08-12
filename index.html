@@ -1,103 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Weight & Calories Tracker</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 500px;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            margin-top: 50px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-        }
-        input, button {
-            width: 100%;
-            padding: 10px;
-            margin: 5px 0;
-        }
-        canvas {
-            margin-top: 20px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weight & Calories Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
 </head>
 <body>
+  <h1>Weight & Calories Tracker</h1>
 
-<div class="container">
-    <h1>Weight & Calories Tracker</h1>
-    <label for="date">Date:</label>
-    <input type="date" id="date">
+  <div class="calendar-nav">
+    <button id="prevDay">Previous</button>
+    <span id="currentDate"></span>
+    <button id="nextDay">Next</button>
+  </div>
 
-    <label for="weight">Weight (kg):</label>
-    <input type="number" id="weight">
+  <div class="data-inputs">
+    <input type="number" id="weightInput" placeholder="Weight (kg)" step="0.1" />
+    <button id="saveWeight">Save Weight</button><br />
 
-    <label for="calories">Calories:</label>
-    <input type="number" id="calories">
+    <input type="number" id="caloriesInput" placeholder="Calories" />
+    <button id="saveCalories">Save Calories</button>
+  </div>
 
-    <button onclick="saveData()">Save</button>
+  <canvas id="weightChart" width="400" height="200"></canvas>
 
-    <canvas id="chart" width="400" height="200"></canvas>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    let data = JSON.parse(localStorage.getItem("trackerData")) || [];
-
-    const ctx = document.getElementById('chart').getContext('2d');
-    let chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: data.map(entry => entry.date),
-            datasets: [{
-                label: 'Weight (kg)',
-                data: data.map(entry => entry.weight),
-                borderColor: 'blue',
-                fill: false
-            }]
-        },
-        options: {
-            responsive: true
-        }
-    });
-
-    function saveData() {
-        const date = document.getElementById("date").value;
-        const weight = parseFloat(document.getElementById("weight").value);
-        const calories = parseInt(document.getElementById("calories").value);
-
-        if (!date || isNaN(weight) || isNaN(calories)) {
-            alert("Please fill all fields");
-            return;
-        }
-
-        const index = data.findIndex(entry => entry.date === date);
-        if (index >= 0) {
-            data[index].weight = weight;
-            data[index].calories = calories;
-        } else {
-            data.push({ date, weight, calories });
-        }
-
-        localStorage.setItem("trackerData", JSON.stringify(data));
-        updateChart();
-    }
-
-    function updateChart() {
-        chart.data.labels = data.map(entry => entry.date);
-        chart.data.datasets[0].data = data.map(entry => entry.weight);
-        chart.update();
-    }
-</script>
-
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

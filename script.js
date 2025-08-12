@@ -106,9 +106,7 @@ function updateChart() {
       tension: 0.1,
       segment: {
         borderColor: ctx => {
-          const { p0, p1, dataset } = ctx;
-          // p0 and p1 are points of the segment
-          // Use color of p1 dot as the segment color
+          const { p0, p1 } = ctx;
           if (p1 && p1.parsed.y !== null) {
             return pointColors[p1.index] || 'black';
           }
@@ -120,13 +118,38 @@ function updateChart() {
   options: {
     responsive: true,
     plugins: {
-      legend: { display: true }
+      legend: { display: true },
+      annotation: {
+        annotations: {
+          line1: {
+            type: 'line',
+            yMin: 85,
+            yMax: 85,
+            borderColor: 'green',
+            borderWidth: 2,
+            borderDash: [6, 6], // dotted line
+            label: {
+              content: '85 kg',
+              enabled: true,
+              position: 'end',
+              color: 'green',
+              font: { weight: 'bold' }
+            }
+          }
+        }
+      }
     },
     scales: {
-      y: { beginAtZero: false }
+      y: {
+        beginAtZero: false,
+        min: 80,
+        max: 105
+      }
     }
-  }
+  },
+  plugins: [Chart.registry.getPlugin('annotation')] // ensure annotation plugin is enabled
 });
+;
 ;
   }
 }

@@ -92,65 +92,63 @@ function updateChart() {
     weightChart.update();
   } else {
     weightChart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: sortedDates,
-    datasets: [{
-      label: 'Weight (kg)',
-      data: weights,
-      borderColor: 'black', // fallback, overridden by segment coloring
-      fill: false,
-      pointBackgroundColor: pointColors,
-      pointRadius: 6,
-      pointHoverRadius: 8,
-      tension: 0.1,
-      segment: {
-        borderColor: ctx => {
-          const { p0, p1 } = ctx;
-          if (p1 && p1.parsed.y !== null) {
-            return pointColors[p1.index] || 'black';
-          }
-          return 'black';
-        }
-      }
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { display: true },
-      annotation: {
-        annotations: {
-          line1: {
-            type: 'line',
-            yMin: 85,
-            yMax: 85,
-            borderColor: 'green',
-            borderWidth: 2,
-            borderDash: [6, 6], // dotted line
-            label: {
-              content: '85 kg',
-              enabled: true,
-              position: 'end',
-              color: 'green',
-              font: { weight: 'bold' }
+      type: 'line',
+      data: {
+        labels: sortedDates,
+        datasets: [{
+          label: 'Weight (kg)',
+          data: weights,
+          borderColor: 'black', // fallback, overridden by segment coloring
+          fill: false,
+          pointBackgroundColor: pointColors,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          tension: 0.1,
+          segment: {
+            borderColor: ctx => {
+              const { p0, p1 } = ctx;
+              if (p1 && p1.parsed.y !== null) {
+                return pointColors[p1.index] || 'black';
+              }
+              return 'black';
             }
           }
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: true },
+          annotation: {
+            annotations: {
+              line1: {
+                type: 'line',
+                yMin: 85,
+                yMax: 85,
+                borderColor: 'green',
+                borderWidth: 2,
+                borderDash: [6, 6],
+                label: {
+                  content: '85 kg',
+                  enabled: true,
+                  position: 'end',
+                  color: 'green',
+                  font: { weight: 'bold' }
+                }
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: false,
+            min: 80,
+            max: 105
+          }
         }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: false,
-        min: 80,
-        max: 105
-      }
-    }
-  },
-  plugins: [Chart.registry.getPlugin('annotation')] // ensure annotation plugin is enabled
-});
-;
-;
+      },
+      plugins: [Chart.registry.getPlugin('annotation')]
+    });
   }
 }
 

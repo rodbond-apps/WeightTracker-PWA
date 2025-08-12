@@ -10,9 +10,9 @@
 <body>
   <h1>Weight & Calories Tracker</h1>
 
-  <div class="calendar-nav">
+  <div class="calendar-nav" style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px;">
     <button id="prevDay">Previous</button>
-    <span id="currentDate"></span>
+    <span id="currentDate" style="min-width: 180px; font-weight: bold;"></span>
     <button id="nextDay">Next</button>
   </div>
 
@@ -24,7 +24,7 @@
     <button id="saveCalories">Save Calories</button>
   </div>
 
-  <canvas id="weightChart" width="400" height="200"></canvas>
+  <canvas id="weightChart" width="400" height="200" style="display: block; margin: 30px auto;"></canvas>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="script.js"></script>

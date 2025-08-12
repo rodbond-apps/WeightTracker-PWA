@@ -63,7 +63,10 @@ function getCaloriesForDate(dateKey) {
 function updateChart() {
   const sortedDates = Object.keys(weightData).sort();
   if (sortedDates.length === 0) {
-    if (weightChart) weightChart.clear();
+    if (weightChart) {
+      weightChart.destroy();
+      weightChart = null;
+    }
     return;
   }
 
@@ -85,72 +88,71 @@ function updateChart() {
     return 'gray';
   });
 
+  // Destroy previous chart if exists
   if (weightChart) {
-    weightChart.data.labels = sortedDates;
-    weightChart.data.datasets[0].data = weights;
-    weightChart.data.datasets[0].pointBackgroundColor = pointColors;
-    weightChart.update();
-  } else {
-    weightChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: sortedDates,
-        datasets: [{
-          label: 'Weight (kg)',
-          data: weights,
-          borderColor: 'black', // fallback, overridden by segment coloring
-          fill: false,
-          pointBackgroundColor: pointColors,
-          pointRadius: 6,
-          pointHoverRadius: 8,
-          tension: 0.1,
-          segment: {
-            borderColor: ctx => {
-              const { p0, p1 } = ctx;
-              if (p1 && p1.parsed.y !== null) {
-                return pointColors[p1.index] || 'black';
-              }
-              return 'black';
+    weightChart.destroy();
+  }
+
+  weightChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sortedDates,
+      datasets: [{
+        label: 'Weight (kg)',
+        data: weights,
+        borderColor: 'black', // fallback, overridden by segment coloring
+        fill: false,
+        pointBackgroundColor: pointColors,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        tension: 0.1,
+        segment: {
+          borderColor: ctx => {
+            const { p1 } = ctx;
+            if (p1 && p1.parsed.y !== null) {
+              return pointColors[p1.index] || 'black';
             }
+            return 'black';
           }
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: true },
-          annotation: {
-            annotations: {
-              line1: {
-                type: 'line',
-                yMin: 85,
-                yMax: 85,
-                borderColor: 'green',
-                borderWidth: 2,
-                borderDash: [6, 6],
-                label: {
-                  content: '85 kg',
-                  enabled: true,
-                  position: 'end',
-                  color: 'green',
-                  font: { weight: 'bold' }
-                }
+        }
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true },
+        annotation: {
+          annotations: {
+            line1: {
+              type: 'line',
+              yMin: 85,
+              yMax: 85,
+              borderColor: 'green',
+              borderWidth: 2,
+              borderDash: [6, 6],
+              label: {
+                content: '85 kg',
+                enabled: true,
+                position: 'end',
+                color: 'green',
+                font: { weight: 'bold' }
               }
             }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: false,
-            min: 80,
-            max: 105
           }
         }
       },
-      plugins: [Chart.registry.getPlugin('annotation')]
-    });
-  }
+      scales: {
+        y: {
+          beginAtZero: false,
+          min: 80,
+          max: 105
+        }
+      }
+    },
+    plugins: [Chart.registry.getPlugin('annotation')]
+  });
 }
+
 
 document.getElementById('prevDay').addEventListener('click', () => changeDate(-1));
 document.getElementById('nextDay').addEventListener('click', () => changeDate(1));

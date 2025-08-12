@@ -92,30 +92,42 @@ function updateChart() {
     weightChart.update();
   } else {
     weightChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: sortedDates,
-        datasets: [{
-          label: 'Weight (kg)',
-          data: weights,
-          borderColor: 'black',
-          fill: false,
-          pointBackgroundColor: pointColors,
-          pointRadius: 6,
-          pointHoverRadius: 8,
-          tension: 0.1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: true }
-        },
-        scales: {
-          y: { beginAtZero: false }
+  type: 'line',
+  data: {
+    labels: sortedDates,
+    datasets: [{
+      label: 'Weight (kg)',
+      data: weights,
+      borderColor: 'black', // fallback, overridden by segment coloring
+      fill: false,
+      pointBackgroundColor: pointColors,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      tension: 0.1,
+      segment: {
+        borderColor: ctx => {
+          const { p0, p1, dataset } = ctx;
+          // p0 and p1 are points of the segment
+          // Use color of p1 dot as the segment color
+          if (p1 && p1.parsed.y !== null) {
+            return pointColors[p1.index] || 'black';
+          }
+          return 'black';
         }
       }
-    });
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: true }
+    },
+    scales: {
+      y: { beginAtZero: false }
+    }
+  }
+});
+;
   }
 }
 

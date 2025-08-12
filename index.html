@@ -1,275 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Weight & Calories Tracker</title>
-<link rel="manifest" href="manifest.json" />
-<style>
-  body{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    max-width:640px; margin:0 auto; padding:16px; background:#f6f7fb; color:#111;
-  }
-  h1 { text-align:center; margin:6px 0 14px 0; }
-  .date-nav { display:flex; justify-content:center; gap:12px; align-items:center; margin-bottom:12px; }
-  .controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:12px; }
-  label { font-weight:600; margin-right:6px; }
-  input[type=number] { padding:8px; border-radius:8px; border:1px solid #ddd; width:120px; }
-  button { padding:8px 12px; border-radius:8px; border:0; background:#2f9e44; color:#fff; cursor:pointer; }
-  button:hover { filter:brightness(0.95); }
-  .card { background:#fff; border-radius:10px; padding:12px; box-shadow:0 1px 6px rgba(0,0,0,0.06); margin-bottom:12px; }
-  .result { text-align:center; padding:12px 8px; font-weight:600; }
-  #chart-container { margin-top:8px; }
-  footer { text-align:center; color:#666; font-size:13px; margin-top:18px; }
-  @media (max-width:420px){ input[type=number]{width:100px;} }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weight & Calories Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f9f9f9;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        .calendar-nav {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #graph {
+            margin-top: 30px;
+            height: 300px;
+        }
+    </style>
 </head>
 <body>
-  <h1>Weight & Calories</h1>
 
-  <div class="date-nav card">
-    <button id="prev-day">&lt; Prev</button>
-    <div id="date-display" style="min-width:160px; text-align:center; font-weight:600;"></div>
-    <button id="next-day">Next &gt;</button>
-  </div>
-
-  <div class="card">
-    <div style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap; align-items:center;">
-      <div>
-        <label for="weight-input">Weight (kg)</label><br/>
-        <input id="weight-input" type="number" step="0.1" min="20" max="300" />
-      </div>
-
-      <div>
-        <label for="calories-input">Calories</label><br/>
-        <input id="calories-input" type="number" step="10" min="800" max="8000" />
-      </div>
-
-      <div style="align-self:end;">
-        <button id="save-day">Save</button>
-      </div>
+    <h1>Weight & Calories Tracker</h1>
+    <div class="calendar-nav">
+        <button id="prevDay">⬅️ Prev</button>
+        <h2 id="currentDate"></h2>
+        <button id="nextDay">Next ➡️</button>
     </div>
-  </div>
 
-  <div id="calorie-result" class="card result">
-    Enter weight & calories and press Save.
-  </div>
+    <label for="weight">Weight (kg):</label>
+    <input type="number" id="weight" placeholder="Enter weight">
+    <button id="saveWeight">Save Weight</button>
 
-  <div id="chart-container" class="card">
-    <h2 style="text-align:center; margin:6px 0;">Weight History (30 days)</h2>
-    <canvas id="weight-chart" width="600" height="280" aria-label="Weight history chart"></canvas>
-  </div>
+    <label for="calories">Calories:</label>
+    <input type="number" id="calories" placeholder="Enter calories">
+    <button id="saveCalories">Save Calories</button>
 
-  <footer>All data stored locally on this device.</footer>
+    <canvas id="graph"></canvas>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-/* -----------------------
-   Storage & helpers
-   ----------------------*/
-const STORAGE = {
-  weights: 'wt_weights',      // { "YYYY-MM-DD": 87.2, ... }
-  calories: 'wt_calories'     // { "YYYY-MM-DD": 3200, ... }
-};
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const dateDisplay = document.getElementById('currentDate');
+        let currentDate = new Date();
+        let data = JSON.parse(localStorage.getItem('trackerData')) || {};
 
-const DEFAULT_CAL = 3200;
-
-function formatDate(d){
-  return d.toISOString().slice(0,10);
-}
-function parseDate(s){
-  return new Date(s + 'T00:00:00');
-}
-function cloneDate(d){ return new Date(d.getTime()); }
-function dateNDaysBefore(d,n){
-  const x = cloneDate(d); x.setDate(x.getDate() - n); x.setHours(0,0,0,0); return x;
-}
-
-/* load/save */
-let weightData = JSON.parse(localStorage.getItem(STORAGE.weights) || '{}');
-let caloriesData = JSON.parse(localStorage.getItem(STORAGE.calories) || '{}');
-
-function saveAll(){
-  localStorage.setItem(STORAGE.weights, JSON.stringify(weightData));
-  localStorage.setItem(STORAGE.calories, JSON.stringify(caloriesData));
-}
-
-/* -----------------------
-   UI state
-   ----------------------*/
-let selectedDate = new Date();
-selectedDate.setHours(0,0,0,0);
-
-const dateDisplay = document.getElementById('date-display');
-const prevBtn = document.getElementById('prev-day');
-const nextBtn = document.getElementById('next-day');
-const weightInput = document.getElementById('weight-input');
-const caloriesInput = document.getElementById('calories-input');
-const saveDayBtn = document.getElementById('save-day');
-const calorieResult = document.getElementById('calorie-result');
-const chartCanvas = document.getElementById('weight-chart').getContext('2d');
-
-/* -----------------------
-   Chart setup
-   ----------------------*/
-let weightChart;
-function buildChart(labels, dataPoints, pointColors){
-  if(weightChart){
-    weightChart.data.labels = labels;
-    weightChart.data.datasets[0].data = dataPoints;
-    weightChart.data.datasets[0].pointBackgroundColor = pointColors;
-    weightChart.update();
-    return;
-  }
-
-  weightChart = new Chart(chartCanvas, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Weight (kg)',
-        data: dataPoints,
-        fill: false,
-        borderColor: '#2f9e44',
-        backgroundColor: 'rgba(47,158,68,0.08)',
-        tension: 0.25,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: pointColors,
-        spanGaps: true
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: {
-          beginAtZero: false
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
         }
-      },
-      plugins: { legend: { display: false } }
-    }
-  });
-}
 
-/* -----------------------
-   Core logic: dot coloring
-   - For each date with a recorded weight:
-     - compute average of recorded weights within previous 7 days (date-7 .. date-1)
-     - if avg exists: color red if today's weight > avg, green if < avg, gray if equal
-     - if no prior recorded weights in window: gray
-   ----------------------*/
-function computeDotColorForDate(dateKey){
-  const currentWeight = weightData[dateKey];
-  if (currentWeight == null) return '#999999'; // no point (shouldn't be called)
+        function updateDateDisplay() {
+            dateDisplay.textContent = currentDate.toDateString();
+            loadDayData();
+        }
 
-  // window: previous 7 days (exclude current)
-  const date = parseDate(dateKey);
-  const weights = [];
-  for(let i=1;i<=7;i++){
-    const d = dateNDaysBefore(date, i);
-    const k = formatDate(d);
-    if (weightData[k] != null) weights.push(Number(weightData[k]));
-  }
-  if(weights.length === 0) return '#9aa0a6'; // gray (no prior data)
+        document.getElementById('prevDay').addEventListener('click', () => {
+            currentDate.setDate(currentDate.getDate() - 1);
+            updateDateDisplay();
+        });
 
-  const avg = weights.reduce((a,b)=>a+b,0) / weights.length;
-  if (currentWeight > avg) return '#e53935'; // red
-  if (currentWeight < avg) return '#2e7d32'; // green
-  return '#9aa0a6'; // equal-ish
-}
+        document.getElementById('nextDay').addEventListener('click', () => {
+            currentDate.setDate(currentDate.getDate() + 1);
+            updateDateDisplay();
+        });
 
-/* -----------------------
-   Build chart data (last 30 days)
-   ----------------------*/
-function chartDataLast30(){
-  const today = new Date(); today.setHours(0,0,0,0);
-  const labels = [];
-  const data = [];
-  const colors = [];
+        document.getElementById('saveWeight').addEventListener('click', () => {
+            const weight = parseFloat(document.getElementById('weight').value);
+            if (!isNaN(weight)) {
+                const dateKey = formatDate(currentDate);
+                data[dateKey] = data[dateKey] || {};
+                data[dateKey].weight = weight;
+                localStorage.setItem('trackerData', JSON.stringify(data));
+                loadGraph();
+            }
+        });
 
-  for(let i=29;i>=0;i--){
-    const d = dateNDaysBefore(today, i);
-    const k = formatDate(d);
-    labels.push(k);
+        document.getElementById('saveCalories').addEventListener('click', () => {
+            const calories = parseInt(document.getElementById('calories').value);
+            if (!isNaN(calories)) {
+                const dateKey = formatDate(currentDate);
+                data[dateKey] = data[dateKey] || {};
+                data[dateKey].calories = calories;
+                localStorage.setItem('trackerData', JSON.stringify(data));
+            }
+        });
 
-    if (weightData[k] != null){
-      data.push(Number(weightData[k]));
-      colors.push(computeDotColorForDate(k));
-    } else {
-      data.push(null);
-      colors.push('#cccccc'); // invisible / neutral
-    }
-  }
-  return {labels, data, colors};
-}
+        function loadDayData() {
+            const dateKey = formatDate(currentDate);
+            document.getElementById('weight').value = data[dateKey]?.weight || '';
+            document.getElementById('calories').value = data[dateKey]?.calories || '';
+        }
 
-/* -----------------------
-   UI update
-   ----------------------*/
-function updateDateDisplay(){
-  dateDisplay.textContent = selectedDate.toDateString();
-}
+        function loadGraph() {
+            const sortedDates = Object.keys(data).sort();
+            const weights = sortedDates.map(date => data[date].weight || null);
+            const colors = sortedDates.map((date, index) => {
+                if (data[date].weight != null) {
+                    const pastWeekWeights = sortedDates
+                        .slice(Math.max(0, index - 7), index)
+                        .map(d => data[d].weight)
+                        .filter(w => w != null);
 
-function loadDayIntoForm(){
-  const k = formatDate(selectedDate);
-  const w = weightData[k];
-  const c = caloriesData[k];
+                    if (pastWeekWeights.length > 0) {
+                        const avg = pastWeekWeights.reduce((a, b) => a + b, 0) / pastWeekWeights.length;
+                        return data[date].weight < avg ? 'green' : 'red';
+                    }
+                }
+                return 'gray';
+            });
 
-  weightInput.value = w != null ? w : '';
-  caloriesInput.value = c != null ? c : '';
-  updateCalorieResultForSelectedDay();
-}
+            const ctx = document.getElementById('graph').getContext('2d');
+            if (window.weightChart) {
+                window.weightChart.destroy();
+            }
+            window.weightChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedDates,
+                    datasets: [{
+                        label: 'Weight (kg)',
+                        data: weights,
+                        borderColor: 'blue',
+                        backgroundColor: colors,
+                        pointBackgroundColor: colors,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: true } }
+                }
+            });
+        }
 
-function updateCalorieResultForSelectedDay(){
-  const k = formatDate(selectedDate);
-  const w = weightData[k];
-  const c = caloriesData[k] != null ? caloriesData[k] : DEFAULT_CAL;
+        updateDateDisplay();
+        loadGraph();
+    </script>
 
-  if (w == null && caloriesData[k] == null){
-    calorieResult.textContent = 'No data for this day yet.';
-    return;
-  }
-  // compute average of previous 7 recorded weights
-  const date = selectedDate;
-  const prevWeights = [];
-  for(let i=1;i<=7;i++){
-    const d = dateNDaysBefore(date, i);
-    const key = formatDate(d);
-    if (weightData[key] != null) prevWeights.push(Number(weightData[key]));
-  }
-  if(prevWeights.length === 0){
-    calorieResult.textContent = `Calories: ${c} kcal (no prior weights in last 7 days).`;
-  } else {
-    const avg = prevWeights.reduce((a,b)=>a+b,0) / prevWeights.length;
-    const diff = (w == null) ? '—' : ( (w > avg) ? `↑ ${(w-avg).toFixed(2)} kg` : `↓ ${(avg-w).toFixed(2)} kg` );
-    calorieResult.textContent = `Calories: ${c} kcal. Prev7-day avg: ${avg.toFixed(2)} kg. Today vs avg: ${diff}`;
-  }
-}
-
-/* redraw chart & UI */
-function refreshAll(){
-  updateDateDisplay();
-  loadDayIntoForm();
-  const chart = chartDataLast30();
-  buildChart(chart.labels, chart.data, chart.colors);
-}
-
-/* -----------------------
-   Events
-   ----------------------*/
-prevBtn.addEventListener('click', ()=>{
-  selectedDate.setDate(selectedDate.getDate() - 1);
-  refreshAll();
-});
-nextBtn.addEventListener('click', ()=>{
-  selectedDate.setDate(selectedDate.getDate() + 1);
-  refreshAll();
-});
-
-saveDayBtn.addEventListener('click', ()=>{
-  const k = formatDate(selectedDate);
-  const wVal = weightInput.value.trim();
-  const cVal = caloriesInput.value.trim();
-
-  if (wVal ==
+</body>
+</html>
